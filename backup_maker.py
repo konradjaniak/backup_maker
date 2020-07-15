@@ -1,14 +1,16 @@
 import tkinter as tk
 import time
+import shutil, os, zipfile
 
 class Backup():
     NOTIFICATION_TIMEOUT = 5000 # in milliseconds
-    BACKUP_INTERVAL = 5 # seconds between backups
+    BACKUP_INTERVAL = 30 # seconds between backups
 
     def __init__(self):
         self.job = None
         self.source = None
         self.dest = None
+        self.remainingTime = self.BACKUP_INTERVAL * 60
 
         self.root = tk.Tk()
         self.createWidgets()
@@ -21,7 +23,6 @@ class Backup():
         self.entDestination = tk.Entry(width=100)
         self.btnBackupInterval = tk.Button(text="Backup 30min", command=self.getEntries)
         self.btnStopBackup = tk.Button(text="Stop", command=self.stopBackup, state=tk.DISABLED)
-        self.lblTimeToNextBackup = tk.Label()
 
         self.addWidgetsToWindow()
 
@@ -36,6 +37,9 @@ class Backup():
     def getEntries(self):
         self.source = self.entSource.get()
         self.dest = self.entDestination.get()
+        self.remainingTime = self.BACKUP_INTERVAL * 60
+        self.lblTimeToNextBackup = tk.Label()
+        self.lblTimeToNextBackup.grid(row=2, columnspan=3)
         self.createBackup()
 
     def createBackup(self):
@@ -46,15 +50,27 @@ class Backup():
         else:
             self.btnBackupInterval["state"] = tk.DISABLED
             self.btnStopBackup["state"] = tk.NORMAL
-            nextBackup = time.time() + self.BACKUP_INTERVAL
-            nextHours = time.gmtime(nextBackup).tm_hour + 2
-            nextMinutes = time.gmtime(nextBackup).tm_min
-            nextSeconds = time.gmtime(nextBackup).tm_sec
-            self.lblTimeToNextBackup.grid(row=2, columnspan=3)
-            self.lblTimeToNextBackup.config(text=f"Next backup at: {nextHours}:{nextMinutes}:{nextSeconds}")
-            now = time.strftime("%H:%M:%S")
-            print("Backup done at: ", now)
-            self.job = self.root.after(self.BACKUP_INTERVAL * 1000, self.createBackup)
+
+            if self.remainingTime > 0:
+                self.remainingTime -= 1
+            else:
+                src = self.source
+                os.chdir(self.source)
+                os.chdir("..")
+                dst = os.getcwd()
+                currentTime = time.strftime("%Y_%m_%d_%H_%M_%S")
+                sourceFolder = self.source.split("\\")[-1]
+                backupFolder = sourceFolder + "_BACKUP"
+                if not os.path.exists(os.getcwd() + "\\" + backupFolder):
+                    os.makedirs(backupFolder)
+                os.chdir(backupFolder)
+                destDir = os.getcwd() + "\\" + sourceFolder + "_" + currentTime
+                shutil.copytree(self.source, destDir)
+                self.remainingTime = self.BACKUP_INTERVAL * 60
+        
+            self.lblTimeToNextBackup.config(text=f"Next backup in: {int(self.remainingTime / 60)}:{'{:0>2}'.format(self.remainingTime % 60)}")
+
+            self.job = self.root.after(1000, self.createBackup)
 
     def stopBackup(self):
         self.root.after_cancel(self.job)
@@ -70,7 +86,6 @@ class Backup():
     def deleteNotification(self):
         self.lblNotification.destroy()
         self.btnBackupInterval["state"] = tk.NORMAL
-
 
 
 backup = Backup()
